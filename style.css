@@ -1,0 +1,25 @@
+body {
+    margin: 0; padding: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to bottom, #a83232, #32a836);
+    color: #fff;
+}
+
+.container { padding: 10px; }
+header { text-align: center; margin-bottom: 15px; }
+#sensor-status span { margin: 0 5px; font-size: 14px; }
+.dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; }
+
+.action-btn {
+    padding: 15px 25px;
+    margin: 10px;
+    font-size: 18px;
+    background-color: yellow;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+#readings { margin-top: 15px; }
+#chart-section { text-align: center; margin-top: 20px; }
+canvas { max-width: 100%; background-color: white; }
