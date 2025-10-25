@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Surface and Shape Detector</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/js/dashboard.js"></script>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Smart Surface and Shape Detector</h1>
+        <div id="sensor-status">
+            <span id="Ultrasonic">Ultrasonic: <span class="dot"></span></span>
+            <span id="MLX90614">MLX90614: <span class="dot"></span></span>
+            <span id="TCS34725">TCS34725: <span class="dot"></span></span>
+            <span id="Button">Button: <span class="dot"></span></span>
+            <span id="Buzzer">Buzzer: <span class="dot"></span></span>
+        </div>
+    </header>
+
+    <section id="controls">
+        <button class="action-btn" onclick="runTest('distance')">Measure Distance</button>
+        <button class="action-btn" onclick="runTest('shape')">Detect Shape</button>
+        <button class="action-btn" onclick="runTest('material')">Check Material</button>
+    </section>
+
+    <section id="readings">
+        <div id="distance-data"></div>
+        <div id="temp-data"></div>
+        <div id="rgb-data"></div>
+        <div id="speed-data"></div>
+        <div id="conclusion"></div>
+    </section>
+
+    <section id="chart-section">
+        <canvas id="chartCanvas"></canvas>
+    </section>
+</div>
+</body>
+</html>
