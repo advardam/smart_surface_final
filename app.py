@@ -1,5 +1,5 @@
 from flask import Flask, render_template, jsonify
-import lgpio, time, statistics, random
+import lgpio, time, statistics
 import adafruit_mlx90614, adafruit_tcs34725, busio, board
 from threading import Lock
 import atexit
@@ -7,25 +7,28 @@ import atexit
 app = Flask(__name__)
 lock = Lock()
 
-# ------------------- GPIO PINS -------------------
+# ---------------- GPIO PINS ----------------
 CHIP = 0
 TRIG = 23
 ECHO = 24
 BUZZER = 18
 BUTTON = 17
 
-# ------------------- GPIO SAFE CLAIM FUNCTIONS -------------------
+# ---------------- SAFE GPIO CLAIM ----------------
 def safe_claim_output(handle, pin):
     try:
         lgpio.gpio_claim_output(handle, pin)
         print(f"✅ Output pin {pin} ready")
     except lgpio.error:
-        print(f"⚠️ GPIO {pin} busy, trying to reclaim...")
-        lgpio.gpiochip_close(handle)
-        time.sleep(0.2)
-        handle = lgpio.gpiochip_open(CHIP)
-        lgpio.gpio_claim_output(handle, pin)
-        print(f"✅ Reclaimed GPIO {pin}")
+        print(f"⚠️ GPIO {pin} busy, attempting recovery...")
+        try:
+            lgpio.gpiochip_close(handle)
+            time.sleep(0.3)
+            handle = lgpio.gpiochip_open(CHIP)
+            lgpio.gpio_claim_output(handle, pin)
+            print(f"✅ Reclaimed GPIO {pin}")
+        except lgpio.error:
+            print(f"❌ Could not claim GPIO {pin}, skipping.")
     return handle
 
 def safe_claim_input(handle, pin):
@@ -33,27 +36,30 @@ def safe_claim_input(handle, pin):
         lgpio.gpio_claim_input(handle, pin)
         print(f"✅ Input pin {pin} ready")
     except lgpio.error:
-        print(f"⚠️ GPIO {pin} busy, trying to reclaim...")
-        lgpio.gpiochip_close(handle)
-        time.sleep(0.2)
-        handle = lgpio.gpiochip_open(CHIP)
-        lgpio.gpio_claim_input(handle, pin)
-        print(f"✅ Reclaimed GPIO {pin}")
+        print(f"⚠️ GPIO {pin} busy, attempting recovery...")
+        try:
+            lgpio.gpiochip_close(handle)
+            time.sleep(0.3)
+            handle = lgpio.gpiochip_open(CHIP)
+            lgpio.gpio_claim_input(handle, pin)
+            print(f"✅ Reclaimed GPIO {pin}")
+        except lgpio.error:
+            print(f"❌ Could not claim GPIO {pin}, reads may fail.")
     return handle
 
-# ------------------- OPEN GPIO CHIP -------------------
+# ---------------- OPEN GPIO CHIP ----------------
 h = lgpio.gpiochip_open(CHIP)
 h = safe_claim_output(h, TRIG)
 h = safe_claim_input(h, ECHO)
 h = safe_claim_output(h, BUZZER)
 h = safe_claim_input(h, BUTTON)
 
-# ------------------- SENSOR SETUP -------------------
+# ---------------- SENSORS ----------------
 i2c = busio.I2C(board.SCL, board.SDA)
 mlx = adafruit_mlx90614.MLX90614(i2c)
 color_sensor = adafruit_tcs34725.TCS34725(i2c)
 
-# ------------------- BUZZER & BUTTON -------------------
+# ---------------- BUZZER ----------------
 def buzzer_beep(n=1):
     for _ in range(n):
         lgpio.gpio_write(h, BUZZER, 1)
@@ -61,13 +67,14 @@ def buzzer_beep(n=1):
         lgpio.gpio_write(h, BUZZER, 0)
         time.sleep(0.2)
 
+# ---------------- BUTTON WAIT ----------------
 def wait_for_button():
     print("⏳ Waiting for button press...")
     while lgpio.gpio_read(h, BUTTON) == 0:
         time.sleep(0.05)
     print("✅ Button pressed!")
 
-# ------------------- ULTRASONIC -------------------
+# ---------------- ULTRASONIC ----------------
 def ultrasonic_distance():
     lgpio.gpio_write(h, TRIG, 0)
     time.sleep(0.05)
@@ -88,10 +95,10 @@ def ultrasonic_distance():
     distance = (duration * speed / 2) * 100
     return distance, speed, amb_temp
 
-# ------------------- FLASK ROUTES -------------------
+# ---------------- FLASK ROUTES ----------------
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("dashboard.html")
 
 @app.route("/status")
 def status():
@@ -174,11 +181,11 @@ def measure_material_route():
             "readings": readings
         })
 
-# ------------------- CLEANUP -------------------
+# ---------------- CLEANUP ----------------
 def cleanup():
     try:
         lgpio.gpiochip_close(h)
-        print("\n🧹 GPIO released cleanly.")
+        print("🧹 GPIO released cleanly.")
     except Exception as e:
         print(f"⚠️ Cleanup issue: {e}")
 
