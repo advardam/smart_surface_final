@@ -2,23 +2,58 @@ from flask import Flask, render_template, jsonify
 import lgpio, time, statistics, random
 import adafruit_mlx90614, adafruit_tcs34725, busio, board
 from threading import Lock
+import atexit
 
 app = Flask(__name__)
 lock = Lock()
 
-# ------------------- GPIO -------------------
+# ------------------- GPIO PINS -------------------
 CHIP = 0
 TRIG = 23
 ECHO = 24
 BUZZER = 18
 BUTTON = 17
 
-h = lgpio.gpiochip_open(CHIP)
-lgpio.gpio_claim_output(h, TRIG)
-lgpio.gpio_claim_input(h, ECHO)
-lgpio.gpio_claim_output(h, BUZZER)
-lgpio.gpio_claim_input(h, BUTTON)
+# ------------------- GPIO SAFE CLAIM FUNCTIONS -------------------
+def safe_claim_output(handle, pin):
+    try:
+        lgpio.gpio_claim_output(handle, pin)
+        print(f"✅ Output pin {pin} ready")
+    except lgpio.error:
+        print(f"⚠️ GPIO {pin} busy, trying to reclaim...")
+        lgpio.gpiochip_close(handle)
+        time.sleep(0.2)
+        handle = lgpio.gpiochip_open(CHIP)
+        lgpio.gpio_claim_output(handle, pin)
+        print(f"✅ Reclaimed GPIO {pin}")
+    return handle
 
+def safe_claim_input(handle, pin):
+    try:
+        lgpio.gpio_claim_input(handle, pin)
+        print(f"✅ Input pin {pin} ready")
+    except lgpio.error:
+        print(f"⚠️ GPIO {pin} busy, trying to reclaim...")
+        lgpio.gpiochip_close(handle)
+        time.sleep(0.2)
+        handle = lgpio.gpiochip_open(CHIP)
+        lgpio.gpio_claim_input(handle, pin)
+        print(f"✅ Reclaimed GPIO {pin}")
+    return handle
+
+# ------------------- OPEN GPIO CHIP -------------------
+h = lgpio.gpiochip_open(CHIP)
+h = safe_claim_output(h, TRIG)
+h = safe_claim_input(h, ECHO)
+h = safe_claim_output(h, BUZZER)
+h = safe_claim_input(h, BUTTON)
+
+# ------------------- SENSOR SETUP -------------------
+i2c = busio.I2C(board.SCL, board.SDA)
+mlx = adafruit_mlx90614.MLX90614(i2c)
+color_sensor = adafruit_tcs34725.TCS34725(i2c)
+
+# ------------------- BUZZER & BUTTON -------------------
 def buzzer_beep(n=1):
     for _ in range(n):
         lgpio.gpio_write(h, BUZZER, 1)
@@ -27,9 +62,12 @@ def buzzer_beep(n=1):
         time.sleep(0.2)
 
 def wait_for_button():
+    print("⏳ Waiting for button press...")
     while lgpio.gpio_read(h, BUTTON) == 0:
         time.sleep(0.05)
+    print("✅ Button pressed!")
 
+# ------------------- ULTRASONIC -------------------
 def ultrasonic_distance():
     lgpio.gpio_write(h, TRIG, 0)
     time.sleep(0.05)
@@ -50,12 +88,7 @@ def ultrasonic_distance():
     distance = (duration * speed / 2) * 100
     return distance, speed, amb_temp
 
-# ------------------- Sensors -------------------
-i2c = busio.I2C(board.SCL, board.SDA)
-mlx = adafruit_mlx90614.MLX90614(i2c)
-color_sensor = adafruit_tcs34725.TCS34725(i2c)
-
-# ------------------- Routes -------------------
+# ------------------- FLASK ROUTES -------------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -140,6 +173,16 @@ def measure_material_route():
             "conclusion": conclusion,
             "readings": readings
         })
+
+# ------------------- CLEANUP -------------------
+def cleanup():
+    try:
+        lgpio.gpiochip_close(h)
+        print("\n🧹 GPIO released cleanly.")
+    except Exception as e:
+        print(f"⚠️ Cleanup issue: {e}")
+
+atexit.register(cleanup)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
