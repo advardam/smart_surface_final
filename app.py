@@ -1,195 +1,132 @@
-from flask import Flask, render_template, jsonify
-import lgpio, time, statistics
-import adafruit_mlx90614, adafruit_tcs34725, busio, board
+# app.py
+import os
+import time
+from flask import Flask, jsonify, render_template, request
 from threading import Lock
-import atexit
 
+# ------------------ GPIO Handling (Raspberry Pi 5 Safe) ------------------
+try:
+    import lgpio
+    LGPIO_AVAILABLE = True
+except ImportError:
+    LGPIO_AVAILABLE = False
+    print("⚠️ lgpio not found — running in simulation mode.")
+
+# ------------------ OLED Display ------------------
+try:
+    from luma.core.interface.serial import i2c
+    from luma.oled.device import sh1106
+    from PIL import Image, ImageDraw, ImageFont
+    OLED_AVAILABLE = True
+except ImportError:
+    OLED_AVAILABLE = False
+    print("⚠️ OLED libraries not found — OLED will be disabled.")
+
+# ------------------ Custom Hardware Layer ------------------
+from hw_layer import measure_distance, measure_shape, measure_material, buzzer_beep
+
+# ------------------ Flask Setup ------------------
 app = Flask(__name__)
-lock = Lock()
+gpio_lock = Lock()
 
-# ---------------- GPIO PINS ----------------
-CHIP = 0
+# ------------------ GPIO Pin Definitions ------------------
 TRIG = 23
 ECHO = 24
 BUZZER = 18
 BUTTON = 17
 
-# ---------------- SAFE GPIO CLAIM ----------------
-def safe_claim_output(handle, pin):
+chip = None
+if LGPIO_AVAILABLE:
     try:
-        lgpio.gpio_claim_output(handle, pin)
-        print(f"✅ Output pin {pin} ready")
-    except lgpio.error:
-        print(f"⚠️ GPIO {pin} busy, attempting recovery...")
-        try:
-            lgpio.gpiochip_close(handle)
-            time.sleep(0.3)
-            handle = lgpio.gpiochip_open(CHIP)
-            lgpio.gpio_claim_output(handle, pin)
-            print(f"✅ Reclaimed GPIO {pin}")
-        except lgpio.error:
-            print(f"❌ Could not claim GPIO {pin}, skipping.")
-    return handle
+        chip = lgpio.gpiochip_open(0)
+        lgpio.gpio_claim_output(chip, TRIG)
+        lgpio.gpio_claim_input(chip, ECHO)
+        lgpio.gpio_claim_output(chip, BUZZER)
+        lgpio.gpio_claim_input(chip, BUTTON)
+    except lgpio.error as e:
+        print(f"⚠️ GPIO initialization error: {e}")
+        chip = None
 
-def safe_claim_input(handle, pin):
+# ------------------ OLED Initialization ------------------
+oled_device = None
+if OLED_AVAILABLE:
     try:
-        lgpio.gpio_claim_input(handle, pin)
-        print(f"✅ Input pin {pin} ready")
-    except lgpio.error:
-        print(f"⚠️ GPIO {pin} busy, attempting recovery...")
+        serial = i2c(port=1, address=0x3C)
+        oled_device = sh1106(serial)
+        print("✅ OLED initialized successfully.")
+    except Exception as e:
+        print(f"⚠️ OLED init failed: {e}")
+        oled_device = None
+
+# ------------------ Helper Function ------------------
+def display_oled(message):
+    """Display message on OLED safely."""
+    if oled_device:
         try:
-            lgpio.gpiochip_close(handle)
-            time.sleep(0.3)
-            handle = lgpio.gpiochip_open(CHIP)
-            lgpio.gpio_claim_input(handle, pin)
-            print(f"✅ Reclaimed GPIO {pin}")
-        except lgpio.error:
-            print(f"❌ Could not claim GPIO {pin}, reads may fail.")
-    return handle
+            with Image.new("1", oled_device.size) as image:
+                draw = ImageDraw.Draw(image)
+                font = ImageFont.load_default()
+                draw.text((5, 20), message, font=font, fill=255)
+                oled_device.display(image)
+        except Exception as e:
+            print(f"⚠️ OLED update failed: {e}")
 
-# ---------------- OPEN GPIO CHIP ----------------
-h = lgpio.gpiochip_open(CHIP)
-h = safe_claim_output(h, TRIG)
-h = safe_claim_input(h, ECHO)
-h = safe_claim_output(h, BUZZER)
-h = safe_claim_input(h, BUTTON)
-
-# ---------------- SENSORS ----------------
-i2c = busio.I2C(board.SCL, board.SDA)
-mlx = adafruit_mlx90614.MLX90614(i2c)
-color_sensor = adafruit_tcs34725.TCS34725(i2c)
-
-# ---------------- BUZZER ----------------
-def buzzer_beep(n=1):
-    for _ in range(n):
-        lgpio.gpio_write(h, BUZZER, 1)
-        time.sleep(0.2)
-        lgpio.gpio_write(h, BUZZER, 0)
-        time.sleep(0.2)
-
-# ---------------- BUTTON WAIT ----------------
-def wait_for_button():
-    print("⏳ Waiting for button press...")
-    while lgpio.gpio_read(h, BUTTON) == 0:
-        time.sleep(0.05)
-    print("✅ Button pressed!")
-
-# ---------------- ULTRASONIC ----------------
-def ultrasonic_distance():
-    lgpio.gpio_write(h, TRIG, 0)
-    time.sleep(0.05)
-    lgpio.gpio_write(h, TRIG, 1)
-    time.sleep(0.00001)
-    lgpio.gpio_write(h, TRIG, 0)
-
-    pulse_start = pulse_end = time.time()
-    timeout = time.time() + 0.04
-    while lgpio.gpio_read(h, ECHO) == 0 and time.time() < timeout:
-        pulse_start = time.time()
-    while lgpio.gpio_read(h, ECHO) == 1 and time.time() < timeout:
-        pulse_end = time.time()
-
-    duration = pulse_end - pulse_start
-    amb_temp = mlx.ambient_temperature
-    speed = 331 + (0.6 * amb_temp)
-    distance = (duration * speed / 2) * 100
-    return distance, speed, amb_temp
-
-# ---------------- FLASK ROUTES ----------------
+# ------------------ Flask Routes ------------------
 @app.route("/")
 def index():
-    return render_template("dashboard.html")
+    return render_template("index.html")
 
 @app.route("/status")
 def status():
-    sensors = {
-        "Ultrasonic": "green",
-        "MLX90614": "green" if mlx.object_temperature else "red",
-        "TCS34725": "green" if color_sensor.color_rgb_bytes else "red",
-        "Button": "green",
-        "Buzzer": "green"
-    }
-    return jsonify(sensors)
+    return jsonify({"status": "OK", "gpio": LGPIO_AVAILABLE})
 
 @app.route("/measure_distance")
 def measure_distance_route():
-    with lock:
-        wait_for_button()
-        buzzer_beep(1)
-        readings = [ultrasonic_distance()[0] for _ in range(5)]
-        avg = sum(readings)/len(readings)
-        dist, speed, amb_temp = ultrasonic_distance()
-        obj_temp = mlx.object_temperature
-        r,g,b = color_sensor.color_rgb_bytes
-        temp_diff = abs(obj_temp - amb_temp)
-        conclusion = f"Distance measurement affected by temp difference: {temp_diff:.1f}°C"
-        buzzer_beep(2)
-        return jsonify({
-            "distance": round(avg,2),
-            "temp_obj": round(obj_temp,1),
-            "temp_amb": round(amb_temp,1),
-            "speed": round(speed,1),
-            "rgb": (r,g,b),
-            "conclusion": conclusion,
-            "readings": readings
-        })
+    try:
+        with gpio_lock:
+            dist = measure_distance(chip, TRIG, ECHO)
+        display_oled(f"Distance: {dist:.1f} cm")
+        return jsonify({"distance": dist})
+    except Exception as e:
+        print(f"⚠️ Distance measurement failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/measure_shape")
 def measure_shape_route():
-    with lock:
-        wait_for_button()
-        buzzer_beep(1)
-        readings = [ultrasonic_distance()[0] for _ in range(15)]
-        mean_val = statistics.mean(readings)
-        std_dev = statistics.stdev(readings)
-        shape = "Flat" if std_dev < 0.5 else "Curved" if std_dev < 2 else "Irregular"
-        obj_temp = mlx.object_temperature
-        amb_temp = mlx.ambient_temperature
-        r,g,b = color_sensor.color_rgb_bytes
-        conclusion = f"Shape {shape} affects ultrasonic accuracy."
-        buzzer_beep(2)
-        return jsonify({
-            "shape": shape,
-            "std_dev": round(std_dev,2),
-            "temp_obj": round(obj_temp,1),
-            "temp_amb": round(amb_temp,1),
-            "rgb": (r,g,b),
-            "conclusion": conclusion,
-            "readings": readings
-        })
+    try:
+        shape = measure_shape()
+        display_oled(f"Shape: {shape}")
+        return jsonify({"shape": shape})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/measure_material")
 def measure_material_route():
-    with lock:
-        wait_for_button()
-        buzzer_beep(1)
-        readings = [ultrasonic_distance()[0] for _ in range(15)]
-        std_dev = statistics.stdev(readings)
-        material = "Reflective" if std_dev < 2 else "Absorbing"
-        obj_temp = mlx.object_temperature
-        amb_temp = mlx.ambient_temperature
-        r,g,b = color_sensor.color_rgb_bytes
-        conclusion = f"Material type {material} affects ultrasonic reflection."
-        buzzer_beep(2)
-        return jsonify({
-            "material": material,
-            "std_dev": round(std_dev,2),
-            "temp_obj": round(obj_temp,1),
-            "temp_amb": round(amb_temp,1),
-            "rgb": (r,g,b),
-            "conclusion": conclusion,
-            "readings": readings
-        })
-
-# ---------------- CLEANUP ----------------
-def cleanup():
     try:
-        lgpio.gpiochip_close(h)
-        print("🧹 GPIO released cleanly.")
+        material = measure_material()
+        display_oled(f"Material: {material}")
+        return jsonify({"material": material})
     except Exception as e:
-        print(f"⚠️ Cleanup issue: {e}")
+        return jsonify({"error": str(e)}), 500
 
-atexit.register(cleanup)
+@app.route("/buzzer", methods=["POST"])
+def buzzer_route():
+    try:
+        with gpio_lock:
+            buzzer_beep(chip, BUZZER)
+        return jsonify({"buzzer": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+# ------------------ Graceful Exit ------------------
+@app.teardown_appcontext
+def cleanup(exception):
+    if chip:
+        try:
+            lgpio.gpiochip_close(chip)
+        except Exception:
+            pass
+
+# ------------------ Run App ------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
