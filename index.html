@@ -1,43 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Surface and Shape Detector</title>
-<link rel="stylesheet" href="/static/css/style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/static/js/dashboard.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Surface Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<div class="container">
+  <div class="container">
     <header>
-        <h1>Smart Surface and Shape Detector</h1>
-        <div id="sensor-status">
-            <span id="Ultrasonic">Ultrasonic: <span class="dot"></span></span>
-            <span id="MLX90614">MLX90614: <span class="dot"></span></span>
-            <span id="TCS34725">TCS34725: <span class="dot"></span></span>
-            <span id="Button">Button: <span class="dot"></span></span>
-            <span id="Buzzer">Buzzer: <span class="dot"></span></span>
-        </div>
+      <h1>🧠 Smart Surface Control Panel</h1>
+      <p class="subtitle">Live Sensor Analysis & Visualization</p>
     </header>
 
-    <section id="controls">
-        <button class="action-btn" onclick="runTest('distance')">Measure Distance</button>
-        <button class="action-btn" onclick="runTest('shape')">Detect Shape</button>
-        <button class="action-btn" onclick="runTest('material')">Check Material</button>
+    <!-- Radar display -->
+    <section class="radar-section">
+      <canvas id="radarCanvas" width="300" height="300"></canvas>
     </section>
 
-    <section id="readings">
-        <div id="distance-data"></div>
-        <div id="temp-data"></div>
-        <div id="rgb-data"></div>
-        <div id="speed-data"></div>
-        <div id="conclusion"></div>
+    <!-- Sensor status -->
+    <section class="status-section">
+      <div class="status-card">
+        <span class="dot" id="ultra-dot"></span> Ultrasonic Sensor
+      </div>
+      <div class="status-card">
+        <span class="dot" id="color-dot"></span> Color Sensor
+      </div>
+      <div class="status-card">
+        <span class="dot" id="temp-dot"></span> IR Temperature Sensor
+      </div>
     </section>
 
-    <section id="chart-section">
-        <canvas id="chartCanvas"></canvas>
+    <!-- Control buttons -->
+    <section class="control-section">
+      <button class="action-btn" id="btn-distance">Measure Distance</button>
+      <button class="action-btn" id="btn-shape">Detect Shape</button>
+      <button class="action-btn" id="btn-material">Detect Material</button>
+      <button class="action-btn" id="btn-beep">Beep Buzzer</button>
     </section>
-</div>
+
+    <!-- Output display -->
+    <section class="output-section">
+      <div class="output-box" id="output-box">Awaiting readings...</div>
+    </section>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
