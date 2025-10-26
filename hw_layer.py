@@ -2,7 +2,7 @@
 import time
 import random
 
-# ------------------ GPIO Handling ------------------
+# ---------------- GPIO ----------------
 try:
     import lgpio
     LGPIO_AVAILABLE = True
@@ -10,94 +10,128 @@ except ImportError:
     LGPIO_AVAILABLE = False
     print("⚠️ lgpio not available — running in simulation mode.")
 
-# ------------------ Measure Distance (Ultrasonic) ------------------
-def measure_distance(chip, TRIG, ECHO, retries=3):
-    """
-    Measures distance using ultrasonic sensor.
-    Handles GPIO busy errors, invalid readings, and simulation fallback.
-    """
-    if not LGPIO_AVAILABLE or chip is None:
-        # Simulated mode for testing
-        simulated = round(random.uniform(5, 50), 2)
-        print(f"[SIM] Distance: {simulated} cm")
-        return simulated
+try:
+    import board
+    import busio
+    import adafruit_tcs34725
+    import adafruit_mlx90614
+except ImportError:
+    print("⚠️ I2C sensor libraries not found — TCS34725 and MLX90614 will simulate.")
+    adafruit_tcs34725 = None
+    adafruit_mlx90614 = None
 
-    for attempt in range(retries):
+# ---------------- Initialization ----------------
+chip = None
+if LGPIO_AVAILABLE:
+    try:
+        chip = lgpio.gpiochip_open(0)
+    except Exception as e:
+        print(f"⚠️ Cannot open lgpio chip: {e}")
+        chip = None
+
+# I2C setup
+i2c = None
+color_sensor = None
+mlx_sensor = None
+try:
+    i2c = busio.I2C(board.SCL, board.SDA)
+    if adafruit_tcs34725:
+        color_sensor = adafruit_tcs34725.TCS34725(i2c)
+    if adafruit_mlx90614:
+        mlx_sensor = adafruit_mlx90614.MLX90614(i2c)
+except Exception as e:
+    print(f"⚠️ I2C sensor init failed: {e}")
+
+# ---------------- Ultrasonic ----------------
+def measure_distance(TRIG, ECHO, samples=10):
+    """Measure distance in cm and return average and stddev"""
+    readings = []
+    if not LGPIO_AVAILABLE or chip is None:
+        # simulation fallback
+        for _ in range(samples):
+            readings.append(round(random.uniform(5,50),2))
+        avg = sum(readings)/len(readings)
+        sigma = (sum((x-avg)**2 for x in readings)/len(readings))**0.5
+        return avg, sigma
+
+    for _ in range(samples):
         try:
-            # Ensure trigger is low
             lgpio.gpio_write(chip, TRIG, 0)
             time.sleep(0.0002)
-
-            # Send 10µs pulse
             lgpio.gpio_write(chip, TRIG, 1)
             time.sleep(0.00001)
             lgpio.gpio_write(chip, TRIG, 0)
 
-            # Wait for echo start
-            start_time = time.time()
+            start = time.time()
             while lgpio.gpio_read(chip, ECHO) == 0:
-                if time.time() - start_time > 0.02:
+                if time.time()-start > 0.02:
                     raise TimeoutError("Echo start timeout")
             pulse_start = time.time()
-
-            # Wait for echo end
             while lgpio.gpio_read(chip, ECHO) == 1:
-                if time.time() - pulse_start > 0.02:
+                if time.time()-pulse_start > 0.02:
                     raise TimeoutError("Echo end timeout")
             pulse_end = time.time()
-
-            # Calculate distance (speed of sound = 34300 cm/s)
             duration = pulse_end - pulse_start
-            distance = (duration * 34300) / 2
-            print(f"[HW] Distance: {distance:.2f} cm")
-            return round(distance, 2)
+            distance = (duration*34300)/2
+            readings.append(round(distance,2))
+            time.sleep(0.02)
+        except Exception:
+            readings.append(None)
 
-        except lgpio.error as e:
-            print(f"⚠️ GPIO error (attempt {attempt + 1}): {e}")
-            time.sleep(0.1)
+    readings = [x for x in readings if x is not None]
+    if not readings:
+        readings = [random.uniform(5,50) for _ in range(samples)]
 
-        except TimeoutError as e:
-            print(f"⚠️ Ultrasonic timeout: {e}")
-            time.sleep(0.1)
+    avg = sum(readings)/len(readings)
+    sigma = (sum((x-avg)**2 for x in readings)/len(readings))**0.5
+    return round(avg,2), round(sigma,2)
 
-        except Exception as e:
-            print(f"⚠️ Unexpected ultrasonic error: {e}")
-            time.sleep(0.1)
+# ---------------- Material Detection ----------------
+def analyze_absorption(sigma):
+    """Return absorption category based on standard deviation"""
+    if sigma < 1.5:
+        return "Reflective"
+    elif sigma < 3.0:
+        return "Medium absorption"
+    else:
+        return "High absorption"
 
-    # If all retries fail
-    print("⚠️ Ultrasonic read failed — returning simulated fallback.")
-    return round(random.uniform(5, 50), 2)
+# ---------------- TCS34725 ----------------
+def read_color():
+    if color_sensor:
+        r, g, b = color_sensor.color_rgb_bytes
+        return {"r": r, "g": g, "b": b}
+    else:
+        # simulation
+        return {"r": random.randint(0,255), "g": random.randint(0,255), "b": random.randint(0,255)}
 
-# ------------------ Measure Shape (Simulated for Now) ------------------
-def measure_shape():
-    """Placeholder: Simulated shape detection."""
-    shapes = ["Cube", "Cylinder", "Sphere", "Cone"]
-    shape = random.choice(shapes)
-    print(f"[SIM] Detected Shape: {shape}")
-    return shape
+# ---------------- MLX90614 ----------------
+def read_temperature():
+    if mlx_sensor:
+        return {"ambient": round(mlx_sensor.ambient_temperature,2),
+                "object": round(mlx_sensor.object_temperature,2)}
+    else:
+        return {"ambient": round(random.uniform(20,30),2),
+                "object": round(random.uniform(20,35),2)}
 
-# ------------------ Measure Material (Simulated for Now) ------------------
-def measure_material():
-    """Placeholder: Simulated material detection."""
-    materials = ["Metal", "Plastic", "Wood", "Glass"]
-    material = random.choice(materials)
-    print(f"[SIM] Detected Material: {material}")
-    return material
-
-# ------------------ Buzzer Beep ------------------
-def buzzer_beep(chip, BUZZER, duration=0.2):
-    """Triggers hardware buzzer with fallback to simulated beep."""
+# ---------------- Buzzer ----------------
+def buzzer_beep(BUZZER, duration=0.2):
     if not LGPIO_AVAILABLE or chip is None:
-        print(f"[SIM] Buzzer beep (duration={duration}s)")
+        print(f"[SIM] Buzzer beep {duration}s")
         time.sleep(duration)
         return
-
     try:
         lgpio.gpio_write(chip, BUZZER, 1)
         time.sleep(duration)
         lgpio.gpio_write(chip, BUZZER, 0)
-        print("[HW] Buzzer beeped successfully.")
-    except lgpio.error as e:
-        print(f"⚠️ Buzzer GPIO error: {e}")
     except Exception as e:
         print(f"⚠️ Buzzer failed: {e}")
+
+# ---------------- Button ----------------
+def read_button(BUTTON):
+    if not LGPIO_AVAILABLE or chip is None:
+        return False
+    try:
+        return lgpio.gpio_read(chip, BUTTON) == 1
+    except Exception:
+        return False
