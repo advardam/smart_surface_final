@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template_string
 from hw_layer import measure_distance, analyze_absorption, read_color, read_temperature, buzzer_beep, read_button
 import threading
 
@@ -15,6 +15,28 @@ BUTTON = 17
 status = {"ultrasonic": True, "color": True, "temperature": True,
           "button": True, "oled": True, "buzzer": True,
           "ambient_temp": None, "object_temp": None}
+
+# ---------------- Routes ----------------
+@app.route('/')
+def home():
+    # Simple HTML placeholder for dashboard
+    html = """
+    <html>
+        <head>
+            <title>Smart Surface Dashboard</title>
+        </head>
+        <body>
+            <h1>Smart Surface Dashboard</h1>
+            <p>Use the following endpoints:</p>
+            <ul>
+                <li><a href="/status">/status</a></li>
+                <li><a href="/measure_distance">/measure_distance</a></li>
+                <li><a href="/measure_material">/measure_material</a></li>
+            </ul>
+        </body>
+    </html>
+    """
+    return render_template_string(html)
 
 @app.route('/status')
 def get_status():
@@ -43,7 +65,7 @@ def measure_material_route():
 
 @app.route('/buzzer', methods=['POST'])
 def buzz_route():
-    threading.Thread(target=buzzer_beep, args=(BUZZER,0.2)).start()
+    threading.Thread(target=buzzer_beep, args=(BUZZER, 0.2)).start()
     return jsonify({"status":"ok"})
 
 if __name__ == "__main__":
