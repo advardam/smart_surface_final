@@ -11,31 +11,30 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar" role="banner">
     <div class="brand">
       <div class="title">Smart Surface and Shape Detector</div>
       <div class="subtitle">A Scientific Analysis of Ultrasonic Wave Accuracy</div>
     </div>
   </header>
 
-  <main class="page">
+  <main class="page" role="main" aria-live="polite">
     <div class="left-col">
-      <div class="card status-card">
+      <div class="card status-card" aria-label="Sensor status">
         <h3>Sensor Status</h3>
-        <ul class="status-list">
-          <li>Ultrasonic <span class="status-dot" id="dot-ultra"></span></li>
-          <li>Color Sensor <span class="status-dot" id="dot-color"></span></li>
-          <li>IR Temp <span class="status-dot" id="dot-temp"></span></li>
-          <li>Button <span class="status-dot" id="dot-btn"></span></li>
-          <li>OLED <span class="status-dot" id="dot-oled"></span></li>
-          <li>Buzzer <span class="status-dot" id="dot-buzz"></span></li>
+        <ul class="status-list" id="statusList">
+          <li>Ultrasonic <span class="status-dot" id="dot-ultra" title="Ultrasonic status"></span></li>
+          <li>Color Sensor <span class="status-dot" id="dot-color" title="Color sensor status"></span></li>
+          <li>IR Temp <span class="status-dot" id="dot-temp" title="Temperature sensor status"></span></li>
+          <li>Button <span class="status-dot" id="dot-btn" title="Button status"></span></li>
+          <li>OLED <span class="status-dot" id="dot-oled" title="OLED status"></span></li>
+          <li>Buzzer <span class="status-dot" id="dot-buzz" title="Buzzer status"></span></li>
         </ul>
       </div>
 
-      <div class="card radar-card">
+      <div class="card radar-card" aria-label="Radar visualization">
         <h3>Radar Visualization</h3>
-        <canvas id="radarCanvas"></canvas>
-        <div class="radar-hint">Animated sweep — ideal for exhibition</div>
+        <canvas id="radarCanvas" width="480" height="420" aria-hidden="false"></canvas>
       </div>
     </div>
 
@@ -78,21 +77,21 @@
       </div>
 
       <div class="card chart-card">
-        <h3>Distance Readings</h3>
-        <canvas id="chartCanvas"></canvas>
+        <h3>Distance Readings (last 10)</h3>
+        <canvas id="chartCanvas" aria-label="Distance readings chart"></canvas>
       </div>
     </div>
   </main>
 
   <!-- Conclusion Modal -->
   <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
-        <h2>Conclusion</h2>
-        <button id="modalClose" class="modal-close">✕</button>
+        <h2 id="modalTitle">Conclusion</h2>
+        <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
       </div>
       <div class="modal-body" id="modalBody">
-        <!-- Filled dynamically -->
+        <!-- dynamically filled -->
       </div>
       <div class="modal-footer">
         <button id="modalOk" class="modal-ok">Close</button>
