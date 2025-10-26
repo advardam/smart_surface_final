@@ -1,25 +1,104 @@
 body {
-    margin: 0; padding: 0;
-    font-family: Arial, sans-serif;
-    background: linear-gradient(to bottom, #a83232, #32a836);
-    color: #fff;
+  background: radial-gradient(circle at center, #021019 0%, #000000 100%);
+  color: #00ffcc;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  text-align: center;
+  margin: 0;
+  overflow-x: hidden;
 }
 
-.container { padding: 10px; }
-header { text-align: center; margin-bottom: 15px; }
-#sensor-status span { margin: 0 5px; font-size: 14px; }
-.dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; }
+header h1 {
+  margin-top: 10px;
+  font-size: 1.6rem;
+  color: #00ffc3;
+  text-shadow: 0 0 10px #00ffc3;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #66ffe0;
+}
+
+.radar-section {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+}
+
+.status-section {
+  display: flex;
+  justify-content: space-around;
+  margin: 15px 10px;
+  flex-wrap: wrap;
+}
+
+.status-card {
+  background: rgba(0, 255, 170, 0.08);
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #00ffcc;
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+  font-size: 0.9rem;
+  margin: 5px;
+}
+
+.dot {
+  height: 10px;
+  width: 10px;
+  background-color: red;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.control-section {
+  margin-top: 10px;
+}
 
 .action-btn {
-    padding: 15px 25px;
-    margin: 10px;
-    font-size: 18px;
-    background-color: yellow;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
+  background: #003c3c;
+  color: #00ffcc;
+  border: 1px solid #00ffcc;
+  padding: 10px 18px;
+  margin: 5px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: 0.2s ease;
 }
 
-#readings { margin-top: 15px; }
-#chart-section { text-align: center; margin-top: 20px; }
-canvas { max-width: 100%; background-color: white; }
+.action-btn:hover {
+  background: #00ffcc;
+  color: #003c3c;
+  box-shadow: 0 0 15px #00ffcc;
+}
+
+.action-btn:active {
+  transform: scale(0.95);
+  background: #00ffaa;
+  box-shadow: 0 0 25px #00ffaa;
+}
+
+.output-section {
+  margin-top: 15px;
+}
+
+.output-box {
+  background: rgba(0, 40, 40, 0.9);
+  padding: 15px;
+  border: 1px solid #00ffcc;
+  border-radius: 12px;
+  width: 80%;
+  margin: 0 auto;
+  font-size: 1rem;
+  box-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+}
+
+@media (max-width: 600px) {
+  .status-section {
+    flex-direction: column;
+    align-items: center;
+  }
+  .action-btn {
+    width: 80%;
+  }
+}
