@@ -1,48 +1,103 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Surface Dashboard</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Smart Surface and Shape Detector</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>🧠 Smart Surface Control Panel</h1>
-      <p class="subtitle">Live Sensor Analysis & Visualization</p>
-    </header>
+  <header class="topbar">
+    <div class="brand">
+      <div class="title">Smart Surface and Shape Detector</div>
+      <div class="subtitle">A Scientific Analysis of Ultrasonic Wave Accuracy</div>
+    </div>
+  </header>
 
-    <!-- Radar display -->
-    <section class="radar-section">
-      <canvas id="radarCanvas" width="300" height="300"></canvas>
-    </section>
-
-    <!-- Sensor status -->
-    <section class="status-section">
-      <div class="status-card">
-        <span class="dot" id="ultra-dot"></span> Ultrasonic Sensor
+  <main class="page">
+    <div class="left-col">
+      <div class="card status-card">
+        <h3>Sensor Status</h3>
+        <ul class="status-list">
+          <li>Ultrasonic <span class="status-dot" id="dot-ultra"></span></li>
+          <li>Color Sensor <span class="status-dot" id="dot-color"></span></li>
+          <li>IR Temp <span class="status-dot" id="dot-temp"></span></li>
+          <li>Button <span class="status-dot" id="dot-btn"></span></li>
+          <li>OLED <span class="status-dot" id="dot-oled"></span></li>
+          <li>Buzzer <span class="status-dot" id="dot-buzz"></span></li>
+        </ul>
       </div>
-      <div class="status-card">
-        <span class="dot" id="color-dot"></span> Color Sensor
-      </div>
-      <div class="status-card">
-        <span class="dot" id="temp-dot"></span> IR Temperature Sensor
-      </div>
-    </section>
 
-    <!-- Control buttons -->
-    <section class="control-section">
-      <button class="action-btn" id="btn-distance">Measure Distance</button>
-      <button class="action-btn" id="btn-shape">Detect Shape</button>
-      <button class="action-btn" id="btn-material">Detect Material</button>
-      <button class="action-btn" id="btn-beep">Beep Buzzer</button>
-    </section>
+      <div class="card radar-card">
+        <h3>Radar Visualization</h3>
+        <canvas id="radarCanvas"></canvas>
+        <div class="radar-hint">Animated sweep — ideal for exhibition</div>
+      </div>
+    </div>
 
-    <!-- Output display -->
-    <section class="output-section">
-      <div class="output-box" id="output-box">Awaiting readings...</div>
-    </section>
+    <div class="center-col">
+      <div class="card data-card">
+        <h3>Live Data</h3>
+        <div class="grid-live">
+          <div class="live-item">
+            <div class="label">Distance</div>
+            <div class="value" id="live-distance">— cm</div>
+          </div>
+          <div class="live-item">
+            <div class="label">Color</div>
+            <div class="value" id="live-color">—</div>
+          </div>
+          <div class="live-item">
+            <div class="label">Object Temp</div>
+            <div class="value" id="live-obj">— °C</div>
+          </div>
+          <div class="live-item">
+            <div class="label">Ambient Temp</div>
+            <div class="value" id="live-amb">— °C</div>
+          </div>
+          <div class="live-item">
+            <div class="label">Speed of Sound</div>
+            <div class="value" id="live-speed">— m/s</div>
+          </div>
+          <div class="live-item">
+            <div class="label">Accuracy</div>
+            <div class="value" id="live-accuracy">— %</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="big-btn" id="btn-distance">Measure Distance</button>
+          <button class="big-btn" id="btn-shape">Detect Shape</button>
+          <button class="big-btn" id="btn-material">Test Material</button>
+          <button class="small-btn" id="btn-conclusion">Conclusion</button>
+        </div>
+      </div>
+
+      <div class="card chart-card">
+        <h3>Distance Readings</h3>
+        <canvas id="chartCanvas"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <!-- Conclusion Modal -->
+  <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Conclusion</h2>
+        <button id="modalClose" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Filled dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button id="modalOk" class="modal-ok">Close</button>
+      </div>
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
